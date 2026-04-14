@@ -1,0 +1,28 @@
+# Personal resume files — keep these private
+*.docx
+*.pdf
+*.doc
+
+# Your filled-in personal instruction files
+resume_instructions.md
+master_resume_bullets.md
+tiering_instructions.md
+
+# Generated JSON content files
+resume_content_*.json
+resume_content.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Word lock files
+~$*.docx
+~$*.doc
