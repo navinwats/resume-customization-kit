@@ -102,13 +102,15 @@ Output files are named: `Your Name Resume MM.DD.YYYY Company Role.docx`
 ## Troubleshooting
 
 **PDF isn't generating:**
-Word may be in a bad state. Run this in your terminal, then try again:
-```bash
-osascript -e 'tell application "Microsoft Word" to close every document saving no'
-```
+The script tries LibreOffice first, then falls back to Word. If neither works:
+- Make sure LibreOffice is installed: `brew install --cask libreoffice`
+- If using Word and it's stuck, reset it: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
 
 **Resume is 3 pages:**
-Claude targets ~18 bullets by default. If it spills, ask Claude to trim 2 bullets and regenerate.
+Claude runs a generate/check/adjust loop automatically. If it still overflows, ask Claude to tighten the longest bullets rather than cutting them — you usually lose less proof that way.
+
+**Font looks wrong in the PDF:**
+Install EB Garamond from [fonts.google.com/specimen/EB+Garamond](https://fonts.google.com/specimen/EB+Garamond). The script swaps Word's built-in Garamond for EB Garamond so both the DOCX and LibreOffice PDF render identically.
 
 **Master resume not found:**
 Make sure your `.docx` is in the same folder as `generate_resume.py` and has `MASTER` in the filename, or is named `master_resume.docx`.

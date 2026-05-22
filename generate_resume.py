@@ -308,8 +308,9 @@ def add_role_line(doc, company, title, location, dates):
         set_run_sz(run, 24)
         return run
 
-    sized_run(company, bold=True)
-    sized_run(", ")
+    if company:
+        sized_run(company, bold=True)
+        sized_run(", ")
     sized_run(title, italic=True)
     sized_run(f" | {location}")
     # Single right-aligned tab jumps to the right margin
@@ -358,6 +359,31 @@ def disable_auto_hyphenation(doc):
     settings = doc.settings.element
     for el in settings.findall(f"{{{W}}}autoHyphenation"):
         settings.remove(el)
+
+
+# ── Font normalization ────────────────────────────────────────────────────────
+
+def _replace_font(doc, old_font, new_font):
+    """Replace every occurrence of old_font with new_font across the document XML.
+
+    Used to swap Word-bundled Garamond for EB Garamond (a system-installed
+    Garamond-family font accessible to both Word and LibreOffice), ensuring the
+    DOCX and LibreOffice-generated PDF look identical.
+    Install EB Garamond from: fonts.google.com/specimen/EB+Garamond
+    """
+    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    rFonts_tag = f"{{{W_NS}}}rFonts"
+    font_attrs = [
+        f"{{{W_NS}}}ascii",
+        f"{{{W_NS}}}hAnsi",
+        f"{{{W_NS}}}eastAsia",
+        f"{{{W_NS}}}cs",
+    ]
+    for tree in (doc.element, doc.styles.element):
+        for el in tree.iter(rFonts_tag):
+            for attr in font_attrs:
+                if el.get(attr) == old_font:
+                    el.set(attr, new_font)
 
 
 # ── Body cleaner ──────────────────────────────────────────────────────────────
@@ -455,6 +481,11 @@ def main():
     build_experience(doc, content.get("experience", []))
     build_skills(doc, content.get("skills", []))
     build_education(doc, content.get("education", ""))
+
+    # Swap Word-bundled Garamond for EB Garamond so the DOCX and
+    # LibreOffice-generated PDF use the same font.
+    # Install EB Garamond from: fonts.google.com/specimen/EB+Garamond
+    _replace_font(doc, "Garamond", "EB Garamond")
 
     if not output_name.lower().endswith(".docx"):
         output_name += ".docx"
