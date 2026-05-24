@@ -94,7 +94,22 @@ Output files are named: `Your Name Resume MM.DD.YYYY Company Role.docx`
 
 - **The bullet bank is the most important file.** Invest time in writing complete, metrics-backed bullets for every role. This is what separates a good resume from a generic one.
 - **Be specific in your instructions.** The more precisely you define role families and bullet priorities, the better Claude's selections will be.
-- **Verify every output.** Claude checks page count automatically, but always open the `.docx` to review the content before sending.
+- **Estimate line count before generating.** EB Garamond at 11pt wraps at roughly 95 characters per line. Before running the script, estimate total lines using this formula:
+
+  ```python
+  import math, re
+
+  def estimated_lines(text, wrap=95):
+      chars = len(re.sub(r'\*\*', '', text))  # strip bold markers
+      return max(1, math.ceil(chars / wrap))
+
+  total = sum(estimated_lines(b) for role in content["experience"] for b in role["bullets"])
+  print(f"Estimated bullet lines: {total}")
+  ```
+
+  **Target range: 47–54 lines.** Below 47 is too thin. Above 54 will overflow. Adjust bullet count or length before generating rather than after.
+
+- **Verify every output visually.** Claude checks page count automatically, but render the PDF and scan for fill quality before sending. A resume that fits 2 pages but only fills 75% of the second page looks unfinished.
 - **Keep your real files out of git.** The `.gitignore` in this repo excludes `*.docx`, `*.pdf`, `resume_content_*.json`, and your personal instruction files. Your actual resume files stay private.
 
 ---
@@ -107,7 +122,7 @@ The script tries LibreOffice first, then falls back to Word. If neither works:
 - If using Word and it's stuck, reset it: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
 
 **Resume is 3 pages:**
-Claude runs a generate/check/adjust loop automatically. If it still overflows, ask Claude to tighten the longest bullets rather than cutting them — you usually lose less proof that way.
+Run the line estimation formula above before generating — it catches overflow before the script runs. If you're already over, ask Claude to tighten the longest bullets (shorten, not cut) rather than removing them entirely. You preserve the proof point while buying back lines.
 
 **Font looks wrong in the PDF:**
 Install EB Garamond from [fonts.google.com/specimen/EB+Garamond](https://fonts.google.com/specimen/EB+Garamond). The script swaps Word's built-in Garamond for EB Garamond so both the DOCX and LibreOffice PDF render identically.
