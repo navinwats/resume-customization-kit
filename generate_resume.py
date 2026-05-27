@@ -171,6 +171,12 @@ def add_para(doc_element, text, style_name, base_bold=False):
         numPr.append(ilvl)
         numPr.append(numId)
         pPr.insert(0, numPr)
+        # Explicitly set justification so both Word and LibreOffice honour it.
+        # Without this, LibreOffice ignores the style-level JUSTIFY and renders
+        # bullets as ragged-right even though Word shows them correctly.
+        jc = OxmlElement('w:jc')
+        jc.set(qn('w:val'), 'both')
+        pPr.append(jc)
         # Split on standalone en dash or hyphen connectors → soft line break
         segments = re.split(r' [–\-] ', text)
         for i, segment in enumerate(segments):
@@ -388,35 +394,16 @@ def _replace_font(doc, old_font, new_font):
 
 def _export_pdf(docx_path, pdf_path):
     """
-    Convert .docx to .pdf. Tries three approaches in order:
-      1. LibreOffice headless (best quality, no AppleScript race conditions)
-      2. docx2pdf via Word/AppleScript (retries up to 3x with delay)
-      3. Skips with a warning if both fail
+    Convert .docx to .pdf. Tries two approaches in order:
+      1. docx2pdf via Word/AppleScript — preferred because Word renders justified
+         text correctly. LibreOffice ignores OOXML justification and produces
+         ragged-right bullets even when the docx is correct.
+      2. LibreOffice headless — fallback only if Word is unavailable.
+      3. Skips with a warning if both fail.
     """
     import shutil, time
 
-    # ── Option 1: LibreOffice headless ──
-    soffice = (
-        shutil.which("soffice") or
-        shutil.which("libreoffice") or
-        "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-    )
-    if soffice and os.path.exists(soffice):
-        import subprocess, pathlib
-        out_dir = str(pathlib.Path(pdf_path).parent)
-        result = subprocess.run(
-            [soffice, "--headless", "--convert-to", "pdf", "--outdir", out_dir, docx_path],
-            capture_output=True
-        )
-        # LibreOffice names the output file after the input — rename if needed
-        lo_pdf = docx_path.replace(".docx", ".pdf")
-        if os.path.exists(lo_pdf) and lo_pdf != pdf_path:
-            os.rename(lo_pdf, pdf_path)
-        if os.path.exists(pdf_path):
-            print(f"✓ PDF (LibreOffice): {pdf_path}")
-            return
-
-    # ── Option 2: docx2pdf via Word, with retries ──
+    # ── Option 1: Word via docx2pdf (preferred — correct justification rendering) ──
     try:
         from docx2pdf import convert
         for attempt in range(1, 4):
@@ -429,9 +416,31 @@ def _export_pdf(docx_path, pdf_path):
                     time.sleep(3 * attempt)   # back off 3s, then 6s
                 else:
                     raise
-    except Exception as e:
-        print(f"⚠ PDF export skipped (both methods failed): {e}")
-        print("  → Install LibreOffice for reliable PDF export: https://www.libreoffice.org/download/")
+    except Exception:
+        pass  # fall through to LibreOffice
+
+    # ── Option 2: LibreOffice headless (fallback) ──
+    soffice = (
+        shutil.which("soffice") or
+        shutil.which("libreoffice") or
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    )
+    if soffice and os.path.exists(soffice):
+        import subprocess, pathlib
+        out_dir = str(pathlib.Path(pdf_path).parent)
+        subprocess.run(
+            [soffice, "--headless", "--convert-to", "pdf", "--outdir", out_dir, docx_path],
+            capture_output=True
+        )
+        lo_pdf = docx_path.replace(".docx", ".pdf")
+        if os.path.exists(lo_pdf) and lo_pdf != pdf_path:
+            os.rename(lo_pdf, pdf_path)
+        if os.path.exists(pdf_path):
+            print(f"✓ PDF (LibreOffice): {pdf_path}")
+            return
+
+    print(f"⚠ PDF export skipped (both Word and LibreOffice failed).")
+    print("  → Make sure Microsoft Word is installed for best PDF output.")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -448,12 +457,6 @@ def main():
         content = json.load(f)
 
     doc = Document(MASTER_PATH)
-
-    # Force bullet paragraphs to LEFT alignment — the master style inherits JUSTIFY
-    # which stretches word spacing across each line. LEFT looks clean and is standard
-    # for resume bullets.
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    doc.styles["List Paragraph"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     # Kill auto-hyphenation inherited from MASTER settings
     disable_auto_hyphenation(doc)
