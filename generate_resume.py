@@ -395,29 +395,33 @@ def _replace_font(doc, old_font, new_font):
 def _export_pdf(docx_path, pdf_path):
     """
     Convert .docx to .pdf. Tries two approaches in order:
-      1. docx2pdf via Word/AppleScript — preferred because Word renders justified
-         text correctly. LibreOffice ignores OOXML justification and produces
-         ragged-right bullets even when the docx is correct.
-      2. LibreOffice headless — fallback only if Word is unavailable.
-      3. Skips with a warning if both fail.
+      1. Word via direct osascript — no file picker, no docx2pdf dialogs.
+         Word renders justified text correctly; LibreOffice does not.
+         macOS will prompt for Automation access the very first time only.
+      2. LibreOffice headless — fallback if Word is unavailable.
+      3. Warns if both fail.
     """
-    import shutil, time
+    import subprocess, shutil
 
-    # ── Option 1: Word via docx2pdf (preferred — correct justification rendering) ──
-    try:
-        from docx2pdf import convert
-        for attempt in range(1, 4):
-            try:
-                convert(docx_path, pdf_path)
-                print(f"✓ PDF (Word):   {pdf_path}")
-                return
-            except Exception as e:
-                if attempt < 3:
-                    time.sleep(3 * attempt)   # back off 3s, then 6s
-                else:
-                    raise
-    except Exception:
-        pass  # fall through to LibreOffice
+    docx_abs = os.path.abspath(docx_path)
+    pdf_abs  = os.path.abspath(pdf_path)
+
+    # ── Option 1: Word via osascript (no dialogs, correct justification) ──
+    script = f'''
+tell application "Microsoft Word"
+    open POSIX file "{docx_abs}"
+    set theDoc to active document
+    save as theDoc file name "{pdf_abs}" file format format PDF
+    close theDoc saving no
+end tell
+'''
+    result = subprocess.run(
+        ['osascript', '-e', script],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0 and os.path.exists(pdf_abs):
+        print(f"✓ PDF (Word):   {pdf_abs}")
+        return
 
     # ── Option 2: LibreOffice headless (fallback) ──
     soffice = (
@@ -426,7 +430,7 @@ def _export_pdf(docx_path, pdf_path):
         "/Applications/LibreOffice.app/Contents/MacOS/soffice"
     )
     if soffice and os.path.exists(soffice):
-        import subprocess, pathlib
+        import pathlib
         out_dir = str(pathlib.Path(pdf_path).parent)
         subprocess.run(
             [soffice, "--headless", "--convert-to", "pdf", "--outdir", out_dir, docx_path],
@@ -439,7 +443,9 @@ def _export_pdf(docx_path, pdf_path):
             print(f"✓ PDF (LibreOffice): {pdf_path}")
             return
 
-    print(f"⚠ PDF export skipped (both Word and LibreOffice failed).")
+    print("⚠ PDF export skipped (both Word and LibreOffice failed).")
+    if result.stderr:
+        print(f"  Word error: {result.stderr.strip()}")
     print("  → Make sure Microsoft Word is installed for best PDF output.")
 
 
