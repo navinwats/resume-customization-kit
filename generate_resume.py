@@ -5,7 +5,7 @@ generate_resume.py — Generate a formatted .docx resume from a JSON content fil
 Uses the MASTER resume as a style template so output exactly matches formatting.
 
 Usage:
-    python3 generate_resume.py content.json "Your Name Resume MM.DD.YYYY Company Role.docx"
+    python3 generate_resume.py content.json "Navin Watumull Resume MM.DD.YYYY Company Role.docx"
 
 JSON format (see resume_instructions.md for field descriptions):
 {
@@ -40,26 +40,8 @@ from docx.oxml import OxmlElement
 # ── Constants ────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Auto-detect master resume: looks for a file named "MASTER_RESUME" env var,
-# then any .docx with "MASTER" in the name, then falls back to master_resume.docx
-def _find_master():
-    env = os.environ.get("MASTER_RESUME")
-    if env and os.path.exists(env):
-        return env
-    for f in os.listdir(SCRIPT_DIR):
-        if "MASTER" in f.upper() and f.endswith(".docx") and not f.startswith("~"):
-            return os.path.join(SCRIPT_DIR, f)
-    fallback = os.path.join(SCRIPT_DIR, "master_resume.docx")
-    if not os.path.exists(fallback):
-        print("ERROR: No master resume .docx found. Place your master resume in this folder.")
-        print("  Option 1: Name it master_resume.docx")
-        print("  Option 2: Include 'MASTER' anywhere in the filename")
-        print("  Option 3: Set the MASTER_RESUME environment variable to the full path")
-        sys.exit(1)
-    return fallback
-
-MASTER_PATH = _find_master()
+MASTER_PATH = os.path.join(SCRIPT_DIR,
+    "Navin Watumull MASTER Resume 04.14.2026 Master PMM Resume.docx")
 OUTPUT_DIR = SCRIPT_DIR
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -361,31 +343,6 @@ def disable_auto_hyphenation(doc):
         settings.remove(el)
 
 
-# ── Font normalization ────────────────────────────────────────────────────────
-
-def _replace_font(doc, old_font, new_font):
-    """Replace every occurrence of old_font with new_font across the document XML.
-
-    Used to swap Word-bundled Garamond for EB Garamond (a system-installed
-    Garamond-family font accessible to both Word and LibreOffice), ensuring the
-    DOCX and LibreOffice-generated PDF look identical.
-    Install EB Garamond from: fonts.google.com/specimen/EB+Garamond
-    """
-    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-    rFonts_tag = f"{{{W_NS}}}rFonts"
-    font_attrs = [
-        f"{{{W_NS}}}ascii",
-        f"{{{W_NS}}}hAnsi",
-        f"{{{W_NS}}}eastAsia",
-        f"{{{W_NS}}}cs",
-    ]
-    for tree in (doc.element, doc.styles.element):
-        for el in tree.iter(rFonts_tag):
-            for attr in font_attrs:
-                if el.get(attr) == old_font:
-                    el.set(attr, new_font)
-
-
 # ── Body cleaner ──────────────────────────────────────────────────────────────
 
 def clear_document_body(doc):
@@ -401,6 +358,30 @@ def clear_document_body(doc):
     for child in list(body):
         if child not in preserve:
             body.remove(child)
+
+
+# ── Font normalization ────────────────────────────────────────────────────────
+
+def _replace_font(doc, old_font, new_font):
+    """Replace every occurrence of old_font with new_font across the document XML.
+
+    Used to swap Word-bundled Garamond for EB Garamond (a system-installed
+    Garamond-family font accessible to both Word and LibreOffice), ensuring the
+    DOCX and LibreOffice-generated PDF look identical.
+    """
+    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    rFonts_tag = f"{{{W_NS}}}rFonts"
+    font_attrs = [
+        f"{{{W_NS}}}ascii",
+        f"{{{W_NS}}}hAnsi",
+        f"{{{W_NS}}}eastAsia",
+        f"{{{W_NS}}}cs",
+    ]
+    for tree in (doc.element, doc.styles.element):
+        for el in tree.iter(rFonts_tag):
+            for attr in font_attrs:
+                if el.get(attr) == old_font:
+                    el.set(attr, new_font)
 
 
 # ── PDF export ───────────────────────────────────────────────────────────────
@@ -468,6 +449,12 @@ def main():
 
     doc = Document(MASTER_PATH)
 
+    # Force bullet paragraphs to LEFT alignment — the master style inherits JUSTIFY
+    # which stretches word spacing across each line. LEFT looks clean and is standard
+    # for resume bullets.
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    doc.styles["List Paragraph"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
     # Kill auto-hyphenation inherited from MASTER settings
     disable_auto_hyphenation(doc)
 
@@ -482,14 +469,16 @@ def main():
     build_skills(doc, content.get("skills", []))
     build_education(doc, content.get("education", ""))
 
-    # Swap Word-bundled Garamond for EB Garamond so the DOCX and
-    # LibreOffice-generated PDF use the same font.
-    # Install EB Garamond from: fonts.google.com/specimen/EB+Garamond
-    _replace_font(doc, "Garamond", "EB Garamond")
-
     if not output_name.lower().endswith(".docx"):
         output_name += ".docx"
     output_path = os.path.join(OUTPUT_DIR, output_name)
+
+    # Swap Word-bundled Garamond for EB Garamond (installed system font) so that
+    # both the DOCX and the LibreOffice-generated PDF use the same font.
+    # EB Garamond is a high-quality Garamond-family font accessible to both Word
+    # and LibreOffice. Install from: fonts.google.com/specimen/EB+Garamond
+    _replace_font(doc, "Garamond", "EB Garamond")
+
     doc.save(output_path)
     print(f"✓ Saved: {output_path}")
 
