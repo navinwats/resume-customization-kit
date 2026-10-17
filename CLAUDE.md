@@ -12,7 +12,7 @@ This folder generates tailored resumes from a master bullet bank. When a job des
 | `resume_instructions.md` | Full customization playbook: role families, headline/summary formulas, bullet selection logic, role inclusion rules |
 | `tiering_instructions.md` | Job evaluation framework (use when asked to tier a role before generating) |
 | `generate_resume.py` | Converts a JSON content file into a formatted `.docx` using the master resume as a style template |
-| `[Name] MASTER Resume [date].docx` | Style template — fonts, margins, and formatting are inherited from this file |
+| `master_resume.docx` (or one `*MASTER*.docx`) | Style template — fonts, margins, and formatting are inherited from this file |
 | `resume_content_[company].json` | Generated per role; contains headline, summary, experience, skills, education |
 
 ---
@@ -90,7 +90,7 @@ To use this workflow with your own resume:
 
 1. **Build your `master_resume_bullets.md`** — list every role with verified, metrics-backed bullets. This is the most important file. Do not include anything you cannot verify.
 2. **Write your `resume_instructions.md`** — define your role families, headline formulas, bullet selection priorities, and role inclusion rules. See the existing file as a reference.
-3. **Replace the MASTER `.docx`** — update `generate_resume.py` to reference your own master resume file as the style template (search for `MASTER` in the script).
+3. **Add your master `.docx`** — no script edits needed. `generate_resume.py` uses the first match of: the `MASTER_RESUME` environment variable (full path), then `master_resume.docx` in this folder, then exactly one `*MASTER*.docx` in this folder (Word `~$` lock files are ignored). It stops with an error if none is found or several `*MASTER*.docx` files match. The master must define the paragraph styles `Body A`, `Section Title` and `List Paragraph`, and start with a header table whose first cell holds the name, then headline + line break + contact, then links. The script checks this before building and names anything missing.
 4. **Install dependencies:**
    ```
    pip install python-docx docx2pdf

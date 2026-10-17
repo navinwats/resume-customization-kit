@@ -5,7 +5,12 @@ generate_resume.py — Generate a formatted .docx resume from a JSON content fil
 Uses the MASTER resume as a style template so output exactly matches formatting.
 
 Usage:
-    python3 generate_resume.py content.json "Navin Watumull Resume MM.DD.YYYY Company Role.docx"
+    python3 generate_resume.py content.json "Your Name Resume MM.DD.YYYY Company Role.docx"
+
+Master resume lookup, first match wins:
+    1. MASTER_RESUME environment variable (full path to a .docx)
+    2. master_resume.docx next to this script
+    3. Exactly one *MASTER*.docx next to this script (Word lock files ~$... ignored)
 
 JSON format (see resume_instructions.md for field descriptions):
 {
@@ -33,6 +38,7 @@ import sys
 import json
 import os
 import re
+import glob
 from docx import Document
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -40,14 +46,108 @@ from docx.oxml import OxmlElement
 # ── Constants ────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MASTER_PATH = os.path.join(SCRIPT_DIR,
-    "Navin Watumull MASTER Resume 04.14.2026 Master PMM Resume.docx")
 OUTPUT_DIR = SCRIPT_DIR
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
-# Right-aligned tab stop position: Letter page (12240) minus margins (1152 each) = 9936 DXA
-RIGHT_TAB_POS = "9936"
+# Fallback right-aligned tab stop: Letter page (12240) minus margins (1152 each) = 9936 DXA.
+# Normally computed from the master's page setup (see right_tab_pos).
+DEFAULT_RIGHT_TAB_POS = "9936"
+RIGHT_TAB_POS = DEFAULT_RIGHT_TAB_POS
+
+# Paragraph styles the master must define
+REQUIRED_STYLES = ("Body A", "Section Title", "List Paragraph")
+
+
+# ── Master resume lookup ──────────────────────────────────────────────────────
+
+def _find_master():
+    """
+    Locate the master resume .docx used as the style template:
+      1. MASTER_RESUME environment variable
+      2. master_resume.docx next to this script
+      3. Exactly one *MASTER*.docx next to this script (case-insensitive,
+         Word lock files starting with ~$ ignored)
+    Exits with a clear message if nothing is found or the choice is ambiguous.
+    """
+    env = os.environ.get("MASTER_RESUME")
+    if env:
+        if os.path.isfile(env):
+            return env
+        print(f"ERROR: MASTER_RESUME is set but the file does not exist: {env}")
+        sys.exit(1)
+
+    default = os.path.join(SCRIPT_DIR, "master_resume.docx")
+    if os.path.isfile(default):
+        return default
+
+    candidates = sorted(
+        f for f in glob.glob(os.path.join(SCRIPT_DIR, "*.docx"))
+        if "MASTER" in os.path.basename(f).upper()
+        and not os.path.basename(f).startswith("~$")
+    )
+    if len(candidates) == 1:
+        return candidates[0]
+
+    if not candidates:
+        print(f"ERROR: No master resume .docx found in {SCRIPT_DIR}")
+    else:
+        print(f"ERROR: Found {len(candidates)} *MASTER*.docx files; expected exactly one:")
+        for f in candidates:
+            print(f"  - {os.path.basename(f)}")
+    print("  Option 1: Name your master resume master_resume.docx (checked first)")
+    print("  Option 2: Keep exactly one .docx with 'MASTER' in its filename")
+    print("  Option 3: Set MASTER_RESUME to the full path of your master .docx")
+    sys.exit(1)
+
+
+# ── Master preflight ──────────────────────────────────────────────────────────
+
+def preflight_master(doc, master_path):
+    """
+    Check that the master has the structure this script writes into:
+      - Paragraph styles "Body A", "Section Title" and "List Paragraph"
+      - A header table whose first cell has at least two paragraphs, where
+        paragraph 1 holds the headline, a <w:br/> line break, then contact info
+    Lists every problem and exits 1 instead of failing mid-build.
+    """
+    problems = []
+
+    style_names = {s.name for s in doc.styles}
+    for name in REQUIRED_STYLES:
+        if name not in style_names:
+            problems.append(f'missing paragraph style "{name}"')
+
+    if not doc.tables:
+        problems.append("no header table (the name/headline/contact block must be "
+                        "the first table in the document)")
+    else:
+        cell = doc.tables[0].rows[0].cells[0]
+        paras = cell.paragraphs
+        if len(paras) < 2:
+            problems.append(f"header table's first cell has {len(paras)} paragraph(s); "
+                            "expected name, then headline + line break + contact")
+        elif not any(child.tag == qn('w:r') and child.find(qn('w:br')) is not None
+                     for child in paras[1]._p):
+            problems.append("header table's second paragraph has no line break (<w:br/>) "
+                            "separating the headline from the contact line")
+
+    if problems:
+        print("ERROR: Master resume is missing structure this script needs:")
+        print(f"  {master_path}")
+        for p in problems:
+            print(f"  - {p}")
+        print("  See README.md (Add your master resume) for the required structure.")
+        sys.exit(1)
+
+
+def right_tab_pos(doc):
+    """Right margin position in twips: page width minus left and right margins."""
+    section = doc.sections[-1]
+    if None in (section.page_width, section.left_margin, section.right_margin):
+        return DEFAULT_RIGHT_TAB_POS
+    usable = section.page_width - section.left_margin - section.right_margin
+    return str(int(round(usable / 635)))  # 635 EMU per twip
 
 
 # ── Low-level XML helpers ─────────────────────────────────────────────────────
@@ -462,7 +562,13 @@ def main():
     with open(content_path, "r", encoding="utf-8") as f:
         content = json.load(f)
 
-    doc = Document(MASTER_PATH)
+    master_path = _find_master()
+    doc = Document(master_path)
+    preflight_master(doc, master_path)
+
+    # Dates tab stop sits on the master's right margin
+    global RIGHT_TAB_POS
+    RIGHT_TAB_POS = right_tab_pos(doc)
 
     # Kill auto-hyphenation inherited from MASTER settings
     disable_auto_hyphenation(doc)

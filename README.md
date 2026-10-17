@@ -33,11 +33,16 @@ brew install --cask libreoffice
 
 ### 2. Add your master resume `.docx`
 
-Place your existing resume `.docx` in this folder. Name it one of these ways:
-- `master_resume.docx` (simplest)
-- Anything with `MASTER` in the filename (e.g., `Jane Smith MASTER Resume.docx`)
+Place your existing resume `.docx` in this folder. The generator uses the first match of:
+1. The `MASTER_RESUME` environment variable, set to the full path of your `.docx`
+2. `master_resume.docx` in this folder (simplest)
+3. Exactly one file with `MASTER` in its name (e.g., `Jane Smith MASTER Resume.docx`). If more than one matches, the script stops and lists them; Word lock files (`~$...`) are ignored.
 
-The generator uses this file purely for its formatting — fonts, margins, styles. Your content comes from the JSON.
+The generator uses this file purely for its formatting — fonts, margins, styles. Your content comes from the JSON. It does need a specific structure, and checks for it before building:
+- Paragraph styles named `Body A` (body text), `Section Title` (section headings) and `List Paragraph` (bullets)
+- A header table as the first table in the document. Its first cell holds the name, then a paragraph with your headline, a line break (Shift+Enter in Word) and your contact line, then your links. Only the headline is replaced on each resume.
+
+The dates tab stop is placed at the right margin of your master's page setup, so any paper size or margins work.
 
 ### 3. Fill in the template files
 
@@ -128,7 +133,10 @@ Run the line estimation formula above before generating — it catches overflow 
 Install EB Garamond from [fonts.google.com/specimen/EB+Garamond](https://fonts.google.com/specimen/EB+Garamond). The script swaps Word's built-in Garamond for EB Garamond so both the DOCX and LibreOffice PDF render identically.
 
 **Master resume not found:**
-Make sure your `.docx` is in the same folder as `generate_resume.py` and has `MASTER` in the filename, or is named `master_resume.docx`.
+Name your `.docx` `master_resume.docx` and put it in the same folder as `generate_resume.py`, or keep exactly one `.docx` with `MASTER` in its filename there, or set `MASTER_RESUME` to its full path. If the script says several files match, rename or move all but one.
+
+**Master resume is missing structure:**
+The script lists what it could not find (a style name or the header table). Add the named style in Word (Format → Style → New), or rebuild the header as described in Setup step 2.
 
 ---
 
