@@ -123,7 +123,7 @@ Quantification target: 60–75% of bullets should include a metric, benchmark, o
 - **Primary role:** 6–8 bullets
 - **Secondary role:** 5–6 bullets
 - **Supporting roles:** 2–3 bullets each
-- **Hard limit:** 2 pages. Always verify with `mdls -name kMDItemNumberOfPages` after generating.
+- **Hard limit:** 2 pages. `generate_resume.py` counts the PDF's pages after generating and exits 1 if the count is not 2.
 
 ---
 
