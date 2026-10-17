@@ -8,9 +8,17 @@ resume_instructions.md
 master_resume_bullets.md
 tiering_instructions.md
 
+# Generated resumes (--md output and the recommended --outdir folder)
+* Resume *.md
+output/
+
 # Generated JSON content files
 resume_content_*.json
 resume_content.json
+
+# Per-role keyword requirements (the example stays tracked)
+requirements_*.json
+!requirements_example.json
 
 # Python
 __pycache__/
