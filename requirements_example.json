@@ -1,0 +1,11 @@
+{
+  "title": "Senior Data Analyst (example)",
+  "terms": [
+    {"term": "data quality", "weight": 3, "alternates": ["data integrity"]},
+    {"term": "SQL", "weight": 3},
+    {"term": "stakeholder management", "weight": 2, "alternates": ["stakeholder communication"]},
+    {"term": "dashboards", "weight": 2, "alternates": ["reporting"]},
+    {"term": "A/B testing", "weight": 1, "alternates": ["experimentation"]},
+    {"term": "Tableau", "weight": 1}
+  ]
+}

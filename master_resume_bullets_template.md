@@ -15,6 +15,7 @@ This is your single source of truth. Every bullet you might ever use on a resume
 **Name:** [Your Full Name]
 **Contact:** [Phone] • [Email] • [City, State]
 **Links:** [LinkedIn URL] • [Portfolio URL if applicable]
+**Summary facts:** [X]+ years of experience in [field]; [any other figure your summary cites, e.g. team size or markets served]
 
 ---
 
