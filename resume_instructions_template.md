@@ -123,7 +123,7 @@ Quantification target: 60–75% of bullets should include a metric, benchmark, o
 - **Primary role:** 6–8 bullets
 - **Secondary role:** 5–6 bullets
 - **Supporting roles:** 2–3 bullets each
-- **Hard limit:** 2 pages. Always verify with `mdls -name kMDItemNumberOfPages` after generating.
+- **Hard limit:** 2 pages. `generate_resume.py` counts the PDF's pages after generating and exits 1 if the count is not 2.
 
 ---
 
@@ -142,6 +142,11 @@ Before generating, verify:
 
 - [ ] Role family classification is correct and drives the entire resume
 - [ ] No fabricated data, titles, metrics, or outcomes
+- [ ] Rewording to the job description's vocabulary changed no claim, metric, scope, verb strength, employer name or date ("Led" never became "built")
+- [ ] No distinctive phrase lifted whole from the posting, and no borrowed negation like "not just X"
+- [ ] Every near-miss skill (JD names X, bank has adjacent Y) is left out of the resume, not inserted or upgraded, and listed as a question to the user right after delivering
+- [ ] The whole bank was searched before anything was called a gap; unsupported requirements go in a short gap list for the user, given right after delivering
+- [ ] No `[flagged]` bullet used; every `[unverified]` bullet is left out and listed as a question right after delivering
 - [ ] Summary is exactly two sentences
 - [ ] Current company is listed first with correct title
 - [ ] No duplicate bullets across roles
