@@ -12,7 +12,8 @@ This folder generates tailored resumes from a master bullet bank. When a job des
 | `resume_instructions.md` | Full customization playbook: role families, headline/summary formulas, bullet selection logic, role inclusion rules |
 | `tiering_instructions.md` | Job evaluation framework (use when asked to tier a role before generating) |
 | `generate_resume.py` | Converts a JSON content file into a formatted `.docx` using the master resume as a style template |
-| `[Name] MASTER Resume [date].docx` | Style template — fonts, margins, and formatting are inherited from this file |
+| `trace_check.py` | Fabrication check: every number in a content JSON must appear in `master_resume_bullets.md` |
+| `master_resume.docx` (or one `*MASTER*.docx`) | Style template — fonts, margins, and formatting are inherited from this file |
 | `resume_content_[company].json` | Generated per role; contains headline, summary, experience, skills, education |
 
 ---
@@ -31,22 +32,28 @@ When a job description is dropped in:
 1. Read `resume_instructions.md` and `master_resume_bullets.md` fully before writing any content
 2. Classify the role family per Step 0 of `resume_instructions.md` — this drives everything
 3. Write `resume_content_[company].json` following the JSON schema at the bottom of `resume_instructions.md`
-4. Run the generator from this directory:
+4. Check that every figure traces to the bank:
+   ```
+   python3 trace_check.py resume_content_[company].json
+   ```
+   Every number in the headline, summary, bullets and skills must appear in `master_resume_bullets.md` (bare years and `dates` fields are exempt). On exit 1, replace each listed figure with one the bank states. Never add a number to the bank just to pass.
+5. Run the generator from this directory:
    ```
    python3 generate_resume.py resume_content_[company].json "[Full Name] Resume MM.DD.YYYY Company Role.docx"
    ```
-5. Verify page count — **do not skip this step**:
-   ```
-   sleep 8 && mdls -name kMDItemNumberOfPages "/full/path/to/output.pdf"
-   ```
-6. If page count is not 2, make one informed cut and regenerate once. See page count rules below.
+   It validates the JSON first (required keys, every role's company/title/dates/bullets, no em dashes) and exits 1 listing every problem by JSON path before writing anything. Fix them all, then rerun.
+6. Read the generator's exit status and last lines — **do not skip this step**. After saving the `.docx` it exports the PDF (Word first, LibreOffice as fallback), prints which backend produced it, then counts the PDF's pages with pypdf:
+   - `✓ Page count: 2` and exit 0 — done.
+   - `⚠ Page count: N (expected 2)` and exit 1 — the page count is wrong.
+   - `⚠ PDF export failed` and exit 1 — no PDF was produced, so the page count is unverified. Never report success in this case; see PDF Troubleshooting.
+7. If page count is not 2, make one informed cut and regenerate once. See page count rules below.
 
 ---
 
 ## Hard Rules
 
 ### Page count
-- Must be exactly 2 pages. Verify with `mdls` every time — do not declare done without confirming.
+- Must be exactly 2 pages. The generator checks this on every run and exits 1 otherwise — do not declare done unless it printed `✓ Page count: 2`.
 - Target ~18 bullets total across all roles. This leaves rendering headroom for Word's PDF conversion.
 - Resumes must fill close to 2 full pages — do not leave significant white space.
 - If 3 pages: make one targeted cut (remove 1–2 bullets from least-relevant roles), regenerate, verify. Never loop through generation more than 2–3 times total.
@@ -56,7 +63,7 @@ When a job description is dropped in:
 - Prefer commas, semicolons, or rephrased constructions.
 - Use parentheses for appositives (e.g., `SoundSink (a B2B music licensing CRM)`).
 - Use en dash (–) only when a dash is truly unavoidable.
-- Scan the JSON for `—` before running the generator.
+- `generate_resume.py` rejects any `—` in the JSON, listing each location, and exits 1 before writing anything.
 
 ### Titles
 - Always spell out "Senior" — never abbreviate as "Sr" or "Sr."
@@ -71,16 +78,14 @@ When a job description is dropped in:
 
 ## PDF Troubleshooting
 
+The generator tries Word first (osascript on macOS, docx2pdf on Windows) because Word renders justified text correctly, then falls back to LibreOffice on every platform. The `⚠ PDF export failed` message lists why each backend failed.
+
 If the PDF fails to generate or Word hangs:
-1. Close all open Word documents: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
-2. Wait 2 seconds, then retry the conversion directly:
-   ```python
-   from docx2pdf import convert
-   convert("input.docx", "output.pdf")
-   ```
+1. On macOS, close all open Word documents: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
+2. Wait 2 seconds, then rerun the generator once.
 3. Do **not** run iterative generation loops — each attempt opens and closes Microsoft Word, which is disruptive. Make a content decision first, then generate once.
 
-LibreOffice is a more reliable PDF backend if available: `brew install --cask libreoffice`
+If Word is not installed, install LibreOffice (`brew install --cask libreoffice` on macOS, or libreoffice.org) so the fallback can run. To write only the `.docx`, pass `--no-pdf`; the page count is then unverified.
 
 ---
 
@@ -90,10 +95,10 @@ To use this workflow with your own resume:
 
 1. **Build your `master_resume_bullets.md`** — list every role with verified, metrics-backed bullets. This is the most important file. Do not include anything you cannot verify.
 2. **Write your `resume_instructions.md`** — define your role families, headline formulas, bullet selection priorities, and role inclusion rules. See the existing file as a reference.
-3. **Replace the MASTER `.docx`** — update `generate_resume.py` to reference your own master resume file as the style template (search for `MASTER` in the script).
+3. **Add your master `.docx`** — no script edits needed. `generate_resume.py` uses the first match of: the `MASTER_RESUME` environment variable (full path), then `master_resume.docx` in this folder, then exactly one `*MASTER*.docx` in this folder (Word `~$` lock files are ignored). It stops with an error if none is found or several `*MASTER*.docx` files match. The master must define the paragraph styles `Body A`, `Section Title` and `List Paragraph`, and start with a header table whose first cell holds the name, then headline + line break + contact, then links. The script checks this before building and names anything missing.
 4. **Install dependencies:**
    ```
-   pip install python-docx docx2pdf
+   pip install -r requirements.txt
    ```
 5. Open Claude Code in this folder and paste any job description to generate a resume.
 

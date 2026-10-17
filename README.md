@@ -19,25 +19,32 @@ Built and used by a working product marketer. Every resume is grounded in real, 
 
 ### 1. Install dependencies
 
-You need Python 3 and two packages:
+You need Python 3.9+ and the packages in `requirements.txt`:
 
 ```bash
-pip install python-docx docx2pdf
+pip install -r requirements.txt
 ```
 
-You also need **Microsoft Word** installed (Mac or Windows) for PDF export. On Mac, [LibreOffice](https://www.libreoffice.org/download/) works too and is more reliable:
+That installs `python-docx` (builds the `.docx`) and `pypdf` (counts PDF pages), plus `docx2pdf` on Windows only, where it drives Word.
+
+For PDF export you need **Microsoft Word** (Mac or Windows) or [LibreOffice](https://www.libreoffice.org/download/) (any platform). The script tries Word first because it renders justified text correctly, and falls back to LibreOffice:
 
 ```bash
-brew install --cask libreoffice
+brew install --cask libreoffice   # macOS; on Windows/Linux use the installer from libreoffice.org
 ```
 
 ### 2. Add your master resume `.docx`
 
-Place your existing resume `.docx` in this folder. Name it one of these ways:
-- `master_resume.docx` (simplest)
-- Anything with `MASTER` in the filename (e.g., `Jane Smith MASTER Resume.docx`)
+Place your existing resume `.docx` in this folder. The generator uses the first match of:
+1. The `MASTER_RESUME` environment variable, set to the full path of your `.docx`
+2. `master_resume.docx` in this folder (simplest)
+3. Exactly one file with `MASTER` in its name (e.g., `Jane Smith MASTER Resume.docx`). If more than one matches, the script stops and lists them; Word lock files (`~$...`) are ignored.
 
-The generator uses this file purely for its formatting — fonts, margins, styles. Your content comes from the JSON.
+The generator uses this file purely for its formatting — fonts, margins, styles. Your content comes from the JSON. It does need a specific structure, and checks for it before building:
+- Paragraph styles named `Body A` (body text), `Section Title` (section headings) and `List Paragraph` (bullets)
+- A header table as the first table in the document. Its first cell holds the name, then a paragraph with your headline, a line break (Shift+Enter in Word) and your contact line, then your links. Only the headline is replaced on each resume.
+
+The dates tab stop is placed at the right margin of your master's page setup, so any paper size or margins work.
 
 ### 3. Fill in the template files
 
@@ -86,6 +93,8 @@ Output files are named: `Your Name Resume MM.DD.YYYY Company Role.docx`
 | `generate_resume.py` | The script that converts a JSON content file into a formatted `.docx`. Auto-detects your master resume. |
 | `resume_instructions_template.md` | Template for your customization rules: role families, headline formulas, bullet priorities, role inclusion logic. |
 | `master_resume_bullets_template.md` | Template for your bullet bank: every role, organized by company, with verified metrics. |
+| `trace_check.py` | Fabrication check: every number in a content JSON (headline, summary, bullets, skills) must appear in `master_resume_bullets.md`. `python3 trace_check.py resume_content_[company].json`; exit 1 lists each untraceable figure. |
+| `requirements.txt` | Python dependencies: `pip install -r requirements.txt`. |
 | `README.md` | This file. |
 
 ---
@@ -109,6 +118,8 @@ Output files are named: `Your Name Resume MM.DD.YYYY Company Role.docx`
 
   **Target range: 47–54 lines.** Below 47 is too thin. Above 54 will overflow. Adjust bullet count or length before generating rather than after.
 
+- **Let the page check do the counting.** After exporting the PDF, `generate_resume.py` counts its pages and exits 1 unless there are exactly 2 (`⚠ Page count: 3 (expected 2)`). It also exits 1 if no PDF could be produced, so an unverified run never looks like a pass. Use `--pages 1` for a one-page resume, or `--no-pdf` to write only the `.docx` and skip the check.
+
 - **Verify every output visually.** Claude checks page count automatically, but render the PDF and scan for fill quality before sending. A resume that fits 2 pages but only fills 75% of the second page looks unfinished.
 - **Keep your real files out of git.** The `.gitignore` in this repo excludes `*.docx`, `*.pdf`, `resume_content_*.json`, and your personal instruction files. Your actual resume files stay private.
 
@@ -117,18 +128,23 @@ Output files are named: `Your Name Resume MM.DD.YYYY Company Role.docx`
 ## Troubleshooting
 
 **PDF isn't generating:**
-The script tries LibreOffice first, then falls back to Word. If neither works:
-- Make sure LibreOffice is installed: `brew install --cask libreoffice`
-- If using Word and it's stuck, reset it: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
+The script tries Microsoft Word first (via AppleScript on macOS, via `docx2pdf` on Windows), then falls back to LibreOffice on every platform. It prints which backend produced the PDF, or why each one failed. If neither works:
+- Install LibreOffice: `brew install --cask libreoffice` on macOS, or the installer from libreoffice.org
+- On Windows, make sure `docx2pdf` is installed (`pip install -r requirements.txt`)
+- If Word is stuck on macOS, reset it: `osascript -e 'tell application "Microsoft Word" to close every document saving no'`
+- If the output says `⚠ Word export failed ... (-1708)` on macOS, Word couldn't write to the output folder. Word is sandboxed and can only save where it has access (a folder under your home directory works; `/tmp` does not). Write the output somewhere in your home folder, or keep the LibreOffice PDF.
 
 **Resume is 3 pages:**
-Run the line estimation formula above before generating — it catches overflow before the script runs. If you're already over, ask Claude to tighten the longest bullets (shorten, not cut) rather than removing them entirely. You preserve the proof point while buying back lines.
+Run the line estimation formula above before generating — it catches overflow before the script runs. If you're already over, the generator reports `⚠ Page count: 3 (expected 2)` and exits 1; ask Claude to tighten the longest bullets (shorten, not cut) rather than removing them entirely. You preserve the proof point while buying back lines.
 
 **Font looks wrong in the PDF:**
 Install EB Garamond from [fonts.google.com/specimen/EB+Garamond](https://fonts.google.com/specimen/EB+Garamond). The script swaps Word's built-in Garamond for EB Garamond so both the DOCX and LibreOffice PDF render identically.
 
 **Master resume not found:**
-Make sure your `.docx` is in the same folder as `generate_resume.py` and has `MASTER` in the filename, or is named `master_resume.docx`.
+Name your `.docx` `master_resume.docx` and put it in the same folder as `generate_resume.py`, or keep exactly one `.docx` with `MASTER` in its filename there, or set `MASTER_RESUME` to its full path. If the script says several files match, rename or move all but one.
+
+**Master resume is missing structure:**
+The script lists what it could not find (a style name or the header table). Add the named style in Word (Format → Style → New), or rebuild the header as described in Setup step 2.
 
 ---
 
